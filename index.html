@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>财经看板 · 指数 / K线 / 自选基金</title>
+
+  <!-- Lightweight Charts (TradingView) -->
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1a30;
+      --panel2:#0c1528;
+      --text:#e6eefc;
+      --muted:#9fb0d0;
+      --line:#1e2d4f;
+      --brand:#4da3ff;
+      --good:#2dd4bf;
+      --bad:#fb7185;
+      --warn:#fbbf24;
+      --chip:#13244a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC","Noto Sans CJK SC","Microsoft YaHei", sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background: radial-gradient(1200px 600px at 20% 0%, rgba(77,163,255,.18), transparent 60%),
+                  radial-gradient(900px 700px at 90% 10%, rgba(45,212,191,.12), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    .topbar{
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 18px;
+      background: rgba(11,18,32,.75);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(30,45,79,.6);
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.4px;}
+    .logo{
+      width:34px; height:34px; border-radius:10px;
+      background: linear-gradient(135deg, rgba(77,163,255,1), rgba(45,212,191,1));
+      box-shadow: var(--shadow);
+    }
+    .sub{color:var(--muted); font-weight:600; font-size:12px}
+    .top-actions{display:flex; gap:10px; align-items:center; color:var(--muted); font-size:13px;}
+    .pill{
+      padding:6px 10px;
+      border:1px solid rgba(30,45,79,.8);
+      background: rgba(15,26,48,.6);
+      border-radius:999px;
+      display:flex; align-items:center; gap:8px;
+    }
+    .dot{width:8px;height:8px;border-radius:99px;background:var(--good);box-shadow:0 0 14px rgba(45,212,191,.6)}
+    .layout{
+      display:grid;
+      grid-template-columns: 340px 1fr 390px;
+      gap:14px;
+      padding:14px;
+      max-width: 1560px;
+      margin: 0 auto;
+    }
+    @media (max-width: 1100px){ .layout{grid-template-columns: 1fr} }
+    .col{display:flex; flex-direction:column; gap:14px;}
+    .card{
+      background: linear-gradient(180deg, rgba(15,26,48,.92), rgba(12,21,40,.92));
+      border:1px solid rgba(30,45,79,.8);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card h3{
+      margin:0;
+      padding:12px 14px;
+      font-size:14px;
+      color:#d9e6ff;
+      border-bottom:1px solid rgba(30,45,79,.7);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .card .body{padding:12px 14px;}
+    .row{display:flex; gap:10px; align-items:center;}
+    input, button, select{
+      font-family:inherit;
+      color:var(--text);
+      background: rgba(19,36,74,.45);
+      border:1px solid rgba(30,45,79,.9);
+      border-radius:12px;
+      padding:10px 10px;
+      outline:none;
+    }
+    input::placeholder{color:rgba(159,176,208,.7)}
+    button{
+      cursor:pointer;
+      font-weight:900;
+      background: linear-gradient(135deg, rgba(77,163,255,.95), rgba(45,212,191,.75));
+      border:none;
+      padding:10px 12px;
+      border-radius:12px;
+      white-space:nowrap;
+    }
+    button.secondary{
+      background: rgba(19,36,74,.45);
+      border:1px solid rgba(30,45,79,.9);
+      font-weight:800;
+    }
+    .small{font-size:12px; color:var(--muted); line-height:1.45;}
+    .list{display:flex; flex-direction:column; gap:10px;}
+    .item{
+      padding:10px;
+      border-radius:12px;
+      border:1px solid rgba(30,45,79,.7);
+      background: rgba(19,36,74,.28);
+    }
+    .item.active{
+      border-color: rgba(77,163,255,.75);
+      box-shadow: 0 0 0 1px rgba(77,163,255,.25) inset;
+      background: rgba(77,163,255,.12);
+    }
+    .top{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .name{font-weight:900; font-size:13px;}
+    .code{font-family:var(--mono); color:var(--muted); font-size:12px;}
+    .chg{
+      font-family:var(--mono);
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid rgba(30,45,79,.8);
+      background: rgba(11,18,32,.45);
+      white-space:nowrap;
+      font-weight:900;
+    }
+    .pos{color:var(--good)}
+    .neg{color:var(--bad)}
+    .neu{color:var(--muted)}
+    .meta{color:var(--muted); font-size:12px; margin-top:6px; line-height:1.35;}
+    .split{
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      border-top:1px dashed rgba(30,45,79,.7);
+      margin-top:10px; padding-top:10px;
+      color:var(--muted); font-size:12px;
+    }
+    .tag{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid rgba(30,45,79,.7);
+      background: rgba(19,36,74,.35);
+      color: var(--muted);
+      font-weight:800;
+      white-space:nowrap;
+    }
+    .tabs{display:flex; gap:8px; flex-wrap:wrap;}
+    .tab{
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid rgba(30,45,79,.85);
+      background: rgba(19,36,74,.28);
+      color: var(--muted);
+      font-weight:900;
+      cursor:pointer;
+      user-select:none;
+    }
+    .tab.active{
+      color:#e9f2ff;
+      border-color: rgba(77,163,255,.75);
+      background: rgba(77,163,255,.16);
+    }
+    #chart{
+      width:100%;
+      height:420px;
+      border-radius:12px;
+      overflow:hidden;
+      border:1px solid rgba(30,45,79,.7);
+      background: rgba(11,18,32,.35);
+    }
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .kpi{
+      padding:10px;
+      border-radius:12px;
+      border:1px solid rgba(30,45,79,.7);
+      background: rgba(19,36,74,.38);
+    }
+    .kpi .t{font-size:12px; color:var(--muted); font-weight:800}
+    .kpi .v{font-size:16px; font-weight:900; margin-top:6px;}
+    .kpi .c{font-family:var(--mono); font-size:12px; margin-top:6px; color:var(--muted);}
+    .warn{
+      color: rgba(255,255,255,.92);
+      background: rgba(251,191,36,.12);
+      border:1px solid rgba(251,191,36,.35);
+      padding:10px;
+      border-radius:12px;
+      font-size:12px;
+      line-height:1.45;
+    }
+    .danger{
+      color: rgba(255,255,255,.92);
+      background: rgba(251,113,133,.12);
+      border:1px solid rgba(251,113,133,.35);
+      padding:10px;
+      border-radius:12px;
+      font-size:12px;
+      line-height:1.45;
+    }
+    .flex{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .right-actions button{padding:8px 10px; border-radius:10px}
+    .money{font-family:var(--mono); font-weight:900;}
+
+    /* ✅ 新增：右侧“养鸡宝风格”汇总条 */
+    .account-bar{
+      padding:12px;
+      border-radius:14px;
+      border:1px solid rgba(30,45,79,.8);
+      background: linear-gradient(135deg, rgba(77,163,255,.16), rgba(45,212,191,.10));
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .account-bar .label{
+      font-size:14px;
+      font-weight:1000;
+      color:#eaf2ff;
+      letter-spacing:.2px;
+    }
+    .account-bar .value{
+      font-size:18px;
+      font-weight:1000;
+      font-family:var(--mono);
+      white-space:nowrap;
+    }
+
+    /* ✅ 今日合计行：加大加粗 + 排序控件 */
+    .bigline{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding-top:10px;
+      margin-top:10px;
+      border-top:1px dashed rgba(30,45,79,.7);
+    }
+    .bigline .lefttxt{
+      font-size:14px;
+      font-weight:1000;
+      color:#eaf2ff;
+    }
+    .bigline .rightbox{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .bigline select{
+      padding:8px 10px;
+      border-radius:10px;
+      font-weight:900;
+    }
+
+    /* ✅ 基金三列一行：持有金额 / 持有收益 / 当日收益 + 按钮 */
+    .fund-row{
+      display:grid;
+      grid-template-columns: 1.1fr 1.1fr 1fr auto;
+      gap:10px;
+      align-items:center;
+      margin-top:10px;
+    }
+    .fund-cell{
+      border:1px solid rgba(30,45,79,.7);
+      background: rgba(19,36,74,.28);
+      border-radius:12px;
+      padding:8px;
+    }
+    .fund-cell .t{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:900;
+      margin-bottom:6px;
+    }
+    .fund-cell input{
+      width:100%;
+      padding:9px 10px;
+      border-radius:10px;
+    }
+    .fund-profit{
+      font-family:var(--mono);
+      font-weight:1000;
+      font-size:14px;
+      padding:9px 10px;
+      border-radius:10px;
+      border:1px solid rgba(30,45,79,.8);
+      background: rgba(11,18,32,.45);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .fund-actions{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .fund-actions button{
+      padding:8px 10px;
+      border-radius:10px;
+    }
+
+    /* ✅ Toast */
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom:24px;
+      transform:translateX(-50%);
+      background: rgba(15,26,48,.92);
+      border:1px solid rgba(30,45,79,.85);
+      color:#eaf2ff;
+      padding:10px 12px;
+      border-radius:999px;
+      box-shadow: var(--shadow);
+      font-weight:1000;
+      opacity:0;
+      pointer-events:none;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .toast.show{
+      opacity:1;
+      transform:translateX(-50%) translateY(-6px);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <div>财经看板</div>
+        <div class="sub">左：大盘指数（可增删） · 中：K线/分时分析 · 右：自选基金（估值刷新）</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="pill"><span class="dot"></span><span id="statusText">状态：就绪</span></div>
+      <div class="pill">本地时间：<span id="clock"></span></div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- 左：指数 -->
+    <div class="col">
+      <div class="card">
+        <h3>大盘指数 <span class="sub">可新增 / 删除 / 点击切换</span></h3>
+        <div class="body">
+          <div class="small">
+            已修复纳斯达克/恒生无数据：原因是之前 secid 写错（已改为 100.NDX / 100.HSI 等）。
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <input id="idxName" placeholder="新增指数名称（例如：中证500）" style="flex:1;" />
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <input id="idxSecid" placeholder="新增指数secid（例如：1.000001 或 100.SPX）" style="flex:1;" />
+            <button id="addIndex">添加</button>
+          </div>
+
+          <div class="list" id="indexList" style="margin-top:12px;"></div>
+
+          <div class="split">
+            <span>刷新</span>
+            <span class="right-actions">
+              <button class="secondary" id="idxRefreshNow">立即刷新</button>
+              <button class="secondary" id="idxReset">重置默认</button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>数据诊断 <span class="sub">指数接口</span></h3>
+        <div class="body">
+          <div class="item" style="margin:0;">
+            <div class="top">
+              <div>
+                <div class="name">东方财富 stock/get</div>
+                <div class="code">push2.eastmoney.com/api/qt/stock/get</div>
+              </div>
+              <div class="tag" id="idxNet">未测试</div>
+            </div>
+            <div class="meta" id="idxNetHint">
+              若个别品种无数据：常见是 secid 不存在或不支持该接口。你可以直接修改为东方财富行情页对应的 unify/r/XXX.XXX。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中：图表 -->
+    <div class="col">
+      <div class="card">
+        <h3>
+          <span>指数分析</span>
+          <span class="sub" id="selectedTitle">—</span>
+        </h3>
+
+        <div class="body">
+          <div class="tabs" style="margin-bottom:10px;">
+            <div class="tab active" data-klt="1"   id="tab-1">分时</div>
+            <div class="tab"        data-klt="101" id="tab-101">日K</div>
+            <div class="tab"        data-klt="102" id="tab-102">周K</div>
+            <div class="tab"        data-klt="103" id="tab-103">月K</div>
+          </div>
+
+          <div class="flex" style="margin-bottom:10px;">
+            <span class="tag">历史长度</span>
+            <select id="klineLimit">
+              <option value="240">分时：近 240 点</option>
+              <option value="100">K线：100 根</option>
+              <option value="300" selected>K线：300 根</option>
+              <option value="800">K线：800 根</option>
+            </select>
+            <button class="secondary" id="loadChart">加载/刷新图表</button>
+            <span class="small">滚轮缩放；拖拽平移；双击回到最近。</span>
+          </div>
+
+          <div id="chart"></div>
+
+          <div class="grid2" style="margin-top:12px;">
+            <div class="kpi">
+              <div class="t">最新</div>
+              <div class="v" id="kpiPrice">—</div>
+              <div class="c" id="kpiChg">—</div>
+            </div>
+            <div class="kpi">
+              <div class="t">资金流</div>
+              <div class="v" id="kpiFlow">—</div>
+              <div class="c" id="kpiFlowHint">主力净流入/流出（字段缺失则显示占位）</div>
+            </div>
+          </div>
+
+          <div class="warn" style="margin-top:12px;">
+            资金流如果你要做成同花顺那种“超大/大/中/小单”分层，需要更完整的数据源（通常授权/付费或自建采集）。
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>状态 <span class="sub">图表接口</span></h3>
+        <div class="body">
+          <div class="item" style="margin:0;">
+            <div class="top">
+              <div>
+                <div class="name">东方财富 kline/get</div>
+                <div class="code">push2his.eastmoney.com/api/qt/stock/kline/get</div>
+              </div>
+              <div class="tag" id="klineNet">未测试</div>
+            </div>
+            <div class="meta" id="klineNetHint">
+              若K线无法加载：可能网络拦截或该 secid 不支持K线接口。生产建议加代理与缓存。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：基金 -->
+    <div class="col">
+      <div class="card">
+        <h3>自选基金 <span class="sub">录入金额/收益 · 刷新估值</span></h3>
+        <div class="body">
+          <!-- ✅ 新增：账户资产 + 当日总收益（加大加粗） -->
+          <div class="account-bar">
+            <div>
+              <div class="label">账户资产</div>
+              <div class="small">持有金额 + 持有收益（你的“本金+昨日收益”）</div>
+            </div>
+            <div class="value" id="accountAsset">—</div>
+          </div>
+
+          <div class="account-bar" style="margin-top:10px;">
+            <div>
+              <div class="label">当日总收益</div>
+              <div class="small">所有基金当日收益之和（每30s刷新）</div>
+            </div>
+            <div class="value" id="todayTotalProfit">—</div>
+          </div>
+
+          <div class="small" style="margin-top:12px;">
+            输入基金代码或名称（例如：161725 或 “富国天惠”），自动识别为基金代码；再录入持有金额与持有收益。
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <input id="fundQuery" placeholder="基金代码或名称" style="flex:1;" />
+            <button id="fundAdd">添加</button>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <select id="fundInterval" style="flex:1;">
+              <option value="10">10 秒刷新</option>
+              <option value="30" selected>30 秒刷新</option>
+              <option value="60">60 秒刷新</option>
+              <option value="0">手动刷新</option>
+            </select>
+            <button class="secondary" id="fundRefresh">立即刷新</button>
+          </div>
+
+          <!-- ✅ 今日合计行：加大加粗 + 排序 -->
+          <div class="bigline">
+            <div class="lefttxt">今日合计：<span class="money" id="fundTodaySum">—</span></div>
+            <div class="rightbox">
+              <span class="tag">排序</span>
+              <select id="fundSort">
+                <option value="default" selected>默认</option>
+                <option value="profit">当日收益排序</option>
+                <option value="rate">当日收益率排序</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="fundList" class="list" style="margin-top:12px;"></div>
+
+          <div class="danger" style="margin-top:12px;">
+            你说的“按基金持仓股 + 股票涨跌实时计算”：前端纯直连会很不稳定（持仓权重滞后/接口许可/CORS）。当前版本用盘中估值涨跌(gszzl)计算“当日收益”，稳定可用。
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>数据诊断 <span class="sub">基金接口</span></h3>
+        <div class="body">
+          <div class="item" style="margin:0;">
+            <div class="top">
+              <div>
+                <div class="name">天天基金 fundgz</div>
+                <div class="code">fundgz.1234567.com.cn/js/&lt;code&gt;.js</div>
+              </div>
+              <div class="tag" id="fundNet">未测试</div>
+            </div>
+            <div class="meta" id="fundNetHint">
+              若基金一直失败：可能网络策略/限流。生产建议做容灾与缓存。
+            </div>
+          </div>
+          <div class="item" style="margin-top:10px;">
+            <div class="top">
+              <div>
+                <div class="name">基金名称检索</div>
+                <div class="code">fundcode_search.js（全量列表）</div>
+              </div>
+              <div class="tag" id="fundSearchNet">未加载</div>
+            </div>
+            <div class="meta" id="fundSearchHint">
+              首次加载会拉取全量基金表（较大），之后缓存本地。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ Toast -->
+  <div class="toast" id="toast">数据已修改</div>
+
+<script>
+/* -------------------- 基础工具 -------------------- */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const nowStr = () => new Date().toLocaleString('zh-CN', { hour12:false });
+
+function setStatus(msg){ $("#statusText").textContent = msg; }
+setInterval(() => { $("#clock").textContent = nowStr(); }, 250);
+$("#clock").textContent = nowStr();
+
+function showToast(msg="数据已修改"){
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 1600);
+}
+
+function fmtMoney(n){
+  if(!isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if(abs >= 1e8) return (n/1e8).toFixed(2) + "亿";
+  if(abs >= 1e4) return (n/1e4).toFixed(2) + "万";
+  return n.toFixed(2);
+}
+function fmtPct(n){
+  if(!isFinite(n)) return "—";
+  return (n>0?"+":"") + n.toFixed(2) + "%";
+}
+function clsBy(n){
+  if(!isFinite(n)) return "neu";
+  return n>0 ? "pos" : (n<0 ? "neg" : "neu");
+}
+
+/* -------------------- 指数：存储与默认（✅修正海外指数/黄金 secid） -------------------- */
+const IDX_KEY = "cya_indices_v2";
+const defaultIndices = [
+  { name:"上证指数", secid:"1.000001" },
+  { name:"深证指数", secid:"0.399001" },
+  { name:"纳斯达克指数", secid:"100.NDX" },   // ✅修正
+  { name:"标普500指数", secid:"100.SPX" },    // ✅修正
+  { name:"恒生指数", secid:"100.HSI" },       // ✅修正
+  { name:"国内现货黄金指数", secid:"118.AU9999" }, // ✅修正
+  { name:"伦敦黄金指数", secid:"122.XAU" },        // ✅修正（黄金/美元）
+];
+
+function loadIndices(){
+  try{
+    const raw = localStorage.getItem(IDX_KEY);
+    return raw ? JSON.parse(raw) : defaultIndices;
+  }catch{ return defaultIndices; }
+}
+function saveIndices(list){ localStorage.setItem(IDX_KEY, JSON.stringify(list)); }
+
+let selectedIndex = null;
+
+/* -------------------- 东方财富 stock/get：实时行情 -------------------- */
+async function emQuote(secid){
+  const fields = [
+    "f43","f57","f58","f169","f170","f60","f62","f44","f45","f46"
+  ].join(",");
+
+  const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secid)}&fields=${encodeURIComponent(fields)}&invt=2&fltt=2&ut=fa5fd1943c7b386f172d6893dbfba10b`;
+  const r = await fetch(url, { mode:"cors" });
+  const j = await r.json();
+  if(!j || !j.data) throw new Error("no_data");
+  return j.data;
+}
+
+function normalizePrice(v){
+  const n = Number(v);
+  if(!isFinite(n)) return NaN;
+  if(Math.abs(n) >= 10000) return n / 100;
+  return n;
+}
+function normalizePct(v){
+  const n = Number(v);
+  if(!isFinite(n)) return NaN;
+  if(Math.abs(n) > 200) return n / 100;
+  return n;
+}
+function normalizeFlow(v){
+  const n = Number(v);
+  if(!isFinite(n)) return NaN;
+  return n;
+}
+
+/* -------------------- 左侧指数渲染 -------------------- */
+let idxCache = new Map(); // secid -> quote data
+
+function setIdxNet(ok, msg){
+  $("#idxNet").textContent = ok ? "正常" : "异常";
+  $("#idxNet").style.color = ok ? "var(--good)" : "var(--bad)";
+  $("#idxNet").style.borderColor = ok ? "rgba(45,212,191,.35)" : "rgba(251,113,133,.45)";
+  $("#idxNet").style.background = ok ? "rgba(45,212,191,.10)" : "rgba(251,113,133,.10)";
+  if(msg) $("#idxNetHint").textContent = msg;
+}
+
+function renderIndices(){
+  const list = loadIndices();
+  const el = $("#indexList");
+  el.innerHTML = "";
+
+  list.forEach((it) => {
+    const q = idxCache.get(it.secid);
+    const last = q ? normalizePrice(q.f43) : NaN;
+    const pct  = q ? normalizePct(q.f169) : NaN;
+    const chg  = q ? normalizePrice(q.f170) : NaN;
+
+    const div = document.createElement("div");
+    div.className = "item" + (selectedIndex?.secid === it.secid ? " active" : "");
+    div.innerHTML = `
+      <div class="top">
+        <div>
+          <div class="name">${it.name}</div>
+          <div class="code">${it.secid}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="tag">${isFinite(last) ? last.toFixed(2) : "—"}</span>
+          <span class="chg ${clsBy(pct)}">${isFinite(pct) ? fmtPct(pct) : "无数据"}</span>
+        </div>
+      </div>
+      <div class="meta">
+        涨跌额：<span class="${clsBy(chg)}">${isFinite(chg) ? (chg>0?"+":"") + chg.toFixed(2) : "—"}</span>
+      </div>
+      <div class="split">
+        <span class="small">点击：切换中间图表</span>
+        <span>
+          <button class="secondary" data-del="${it.secid}" style="padding:7px 10px;border-radius:10px;">删除</button>
+        </span>
+      </div>
+    `;
+
+    div.addEventListener("click", (e)=>{
+      if(e.target?.getAttribute && e.target.getAttribute("data-del")) return;
+      selectedIndex = it;
+      renderIndices();
+      selectIndex(it);
+    });
+
+    el.appendChild(div);
+  });
+
+  el.querySelectorAll("button[data-del]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const secid = btn.getAttribute("data-del");
+      const next = loadIndices().filter(x => x.secid !== secid);
+      saveIndices(next.length ? next : defaultIndices);
+      idxCache.delete(secid);
+      if(selectedIndex?.secid === secid) selectedIndex = null;
+      renderIndices();
+      if(!selectedIndex){
+        const first = loadIndices()[0];
+        if(first) { selectedIndex = first; selectIndex(first); renderIndices(); }
+      }
+    });
+  });
+}
+
+async function refreshIndices(){
+  const list = loadIndices();
+  setStatus("状态：指数刷新中…");
+  let anyOk = false;
+
+  for(const it of list){
+    try{
+      const q = await emQuote(it.secid);
+      idxCache.set(it.secid, q);
+      anyOk = true;
+    }catch(err){
+      console.warn("idx quote error", it.secid, err);
+    }
+  }
+  renderIndices();
+
+  if(anyOk){
+    setIdxNet(true, "指数接口可用。若个别品种无数据，通常是该 secid 不存在/不支持。");
+    setStatus("状态：指数刷新完成（" + nowStr() + "）");
+  }else{
+    setIdxNet(false, "指数接口不可用：可能被网络策略拦截/CORS/接口波动。");
+    setStatus("状态：指数刷新失败（见左侧诊断）");
+  }
+}
+
+$("#addIndex").addEventListener("click", ()=>{
+  const name = $("#idxName").value.trim();
+  const secid = $("#idxSecid").value.trim();
+  if(!name || !secid) return;
+  const list = loadIndices();
+  if(list.some(x => x.secid === secid)) return;
+  list.push({ name, secid });
+  saveIndices(list);
+  $("#idxName").value = "";
+  $("#idxSecid").value = "";
+  refreshIndices();
+});
+
+$("#idxRefreshNow").addEventListener("click", refreshIndices);
+$("#idxReset").addEventListener("click", ()=>{
+  saveIndices(defaultIndices);
+  idxCache.clear();
+  selectedIndex = null;
+  renderIndices();
+  refreshIndices();
+});
+
+/* -------------------- 中间：K线/分时图表 -------------------- */
+let chart, candleSeries, lineSeries, volumeSeries;
+
+function initChart(){
+  const el = document.getElementById("chart");
+  chart = LightweightCharts.createChart(el, {
+    layout: { background: { color: "rgba(0,0,0,0)" }, textColor: "#cfe0ff" },
+    grid: { vertLines: { color: "rgba(30,45,79,.35)" }, horzLines: { color: "rgba(30,45,79,.35)" } },
+    rightPriceScale: { borderColor: "rgba(30,45,79,.6)" },
+    timeScale: { borderColor: "rgba(30,45,79,.6)", rightOffset: 2, barSpacing: 8 },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
+  });
+
+  candleSeries = chart.addCandlestickSeries({
+    upColor: "rgba(45,212,191,.95)",
+    downColor: "rgba(251,113,133,.95)",
+    borderVisible: false,
+    wickUpColor: "rgba(45,212,191,.9)",
+    wickDownColor: "rgba(251,113,133,.9)",
+  });
+
+  lineSeries = chart.addLineSeries({ color: "rgba(77,163,255,.95)", lineWidth: 2 });
+
+  volumeSeries = chart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+  });
+  volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+
+  el.addEventListener("dblclick", ()=> chart.timeScale().scrollToRealTime());
+  window.addEventListener("resize", ()=> chart.applyOptions({ width: el.clientWidth, height: el.clientHeight }));
+  chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+}
+
+function setKlineNet(ok, msg){
+  $("#klineNet").textContent = ok ? "正常" : "异常";
+  $("#klineNet").style.color = ok ? "var(--good)" : "var(--bad)";
+  $("#klineNet").style.borderColor = ok ? "rgba(45,212,191,.35)" : "rgba(251,113,133,.45)";
+  $("#klineNet").style.background = ok ? "rgba(45,212,191,.10)" : "rgba(251,113,133,.10)";
+  if(msg) $("#klineNetHint").textContent = msg;
+}
+
+async function emKline(secid, klt, lmt){
+  const fields1 = "f1,f2,f3,f4,f5,f6";
+  const fields2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116";
+
+  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?fields1=${encodeURIComponent(fields1)}&fields2=${encodeURIComponent(fields2)}&klt=${encodeURIComponent(klt)}&fqt=0&secid=${encodeURIComponent(secid)}&end=20500101&lmt=${encodeURIComponent(lmt)}&ut=fa5fd1943c7b386f172d6893dbfba10b`;
+  const r = await fetch(url, { mode:"cors" });
+  const j = await r.json();
+  if(!j || !j.data || !j.data.klines) throw new Error("no_kline");
+  return j.data.klines;
+}
+
+function parseKlinesToSeries(klines, klt){
+  const isMinute = String(klt) === "1";
+  const candles = [], line = [], vols = [];
+
+  for(const s of klines){
+    const parts = s.split(",");
+    if(parts.length < 6) continue;
+
+    const t = parts[0];
+    const open = Number(parts[1]);
+    const close = Number(parts[2]);
+    const high = Number(parts[3]);
+    const low  = Number(parts[4]);
+    const vol  = Number(parts[5]);
+    const time = isMinute ? t.replace(" ", "T") : t;
+
+    candles.push({ time, open, high, low, close });
+    line.push({ time, value: close });
+    vols.push({ time, value: vol, color: close>=open ? "rgba(45,212,191,.35)" : "rgba(251,113,133,.35)" });
+  }
+  return { candles, line, vols };
+}
+
+function applyTab(klt){
+  $$(".tab").forEach(x => x.classList.toggle("active", x.getAttribute("data-klt") === String(klt)));
+}
+
+async function loadChart(){
+  if(!selectedIndex) return;
+
+  const klt = currentKlt;
+  const lmt = Number($("#klineLimit").value);
+  setStatus("状态：加载图表中…");
+
+  try{
+    const kl = await emKline(selectedIndex.secid, klt, lmt);
+    const { candles, line, vols } = parseKlinesToSeries(kl, klt);
+
+    if(String(klt) === "1"){
+      candleSeries.setData([]);
+      lineSeries.setData(line);
+    }else{
+      lineSeries.setData([]);
+      candleSeries.setData(candles);
+    }
+    volumeSeries.setData(vols);
+
+    chart.timeScale().fitContent();
+    setKlineNet(true, "K线接口可用。");
+    setStatus("状态：图表已更新（" + nowStr() + "）");
+  }catch(err){
+    console.warn("kline error", err);
+    setKlineNet(false, "K线接口不可用：可能被拦截或该secid不支持K线。");
+    setStatus("状态：图表加载失败（见中间诊断）");
+  }
+}
+
+$("#loadChart").addEventListener("click", loadChart);
+
+let currentKlt = 1;
+$$(".tab").forEach(tab=>{
+  tab.addEventListener("click", ()=>{
+    currentKlt = Number(tab.getAttribute("data-klt"));
+    applyTab(currentKlt);
+    if(currentKlt === 1){
+      $("#klineLimit").value = "240";
+    }else{
+      if($("#klineLimit").value === "240") $("#klineLimit").value = "300";
+    }
+    loadChart();
+  });
+});
+
+/* -------------------- 选择指数 -> 更新标题/KPI/图表 -------------------- */
+function updateCenterKPI(){
+  if(!selectedIndex) return;
+  const q = idxCache.get(selectedIndex.secid);
+  const last = q ? normalizePrice(q.f43) : NaN;
+  const pct  = q ? normalizePct(q.f169) : NaN;
+  const chg  = q ? normalizePrice(q.f170) : NaN;
+  const flow = q ? normalizeFlow(q.f62) : NaN;
+
+  $("#selectedTitle").textContent = selectedIndex.name + " · " + selectedIndex.secid;
+  $("#kpiPrice").textContent = isFinite(last) ? last.toFixed(2) : "—";
+  $("#kpiChg").innerHTML = `涨跌：<span class="${clsBy(pct)}">${isFinite(pct)?fmtPct(pct):"—"}</span> · 涨跌额：<span class="${clsBy(chg)}">${isFinite(chg)?((chg>0?"+":"")+chg.toFixed(2)):"—"}</span>`;
+  $("#kpiFlow").innerHTML = isFinite(flow) ? `<span class="${clsBy(flow)}">${fmtMoney(flow)}</span>` : "—";
+}
+
+async function selectIndex(it){
+  selectedIndex = it;
+  updateCenterKPI();
+  await loadChart();
+}
+
+/* -------------------- 基金：名称/代码识别 -------------------- */
+const FUND_KEY = "cya_funds_v2";
+const FUND_SORT_KEY = "cya_fund_sort_v1";
+
+function loadFunds(){
+  try{
+    const raw = localStorage.getItem(FUND_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch{ return []; }
+}
+function saveFunds(list){ localStorage.setItem(FUND_KEY, JSON.stringify(list)); }
+
+function loadSort(){
+  return localStorage.getItem(FUND_SORT_KEY) || "default";
+}
+function saveSort(v){
+  localStorage.setItem(FUND_SORT_KEY, v);
+}
+
+let fundCache = new Map(); // code -> latest jsonpgz data
+let fundNameMap = null; // name -> code
+let fundCodeMap = null; // code -> name
+
+function setFundNet(ok, msg){
+  $("#fundNet").textContent = ok ? "正常" : "异常";
+  $("#fundNet").style.color = ok ? "var(--good)" : "var(--bad)";
+  $("#fundNet").style.borderColor = ok ? "rgba(45,212,191,.35)" : "rgba(251,113,133,.45)";
+  $("#fundNet").style.background = ok ? "rgba(45,212,191,.10)" : "rgba(251,113,133,.10)";
+  if(msg) $("#fundNetHint").textContent = msg;
+}
+function setFundSearchNet(ok, msg){
+  $("#fundSearchNet").textContent = ok ? "可用" : "异常";
+  $("#fundSearchNet").style.color = ok ? "var(--good)" : "var(--bad)";
+  $("#fundSearchNet").style.borderColor = ok ? "rgba(45,212,191,.35)" : "rgba(251,113,133,.45)";
+  $("#fundSearchNet").style.background = ok ? "rgba(45,212,191,.10)" : "rgba(251,113,133,.10)";
+  if(msg) $("#fundSearchHint").textContent = msg;
+}
+
+function loadFundCodeSearch(){
+  return new Promise((resolve)=>{
+    if(window.__fundSearchLoaded){
+      buildFundMaps();
+      resolve(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://fund.eastmoney.com/js/fundcode_search.js";
+    script.onload = () => {
+      window.__fundSearchLoaded = true;
+      try{
+        buildFundMaps();
+        setFundSearchNet(true, "基金名称检索已加载并缓存。");
+      }catch(e){
+        console.warn(e);
+        setFundSearchNet(false, "基金检索脚本加载成功但解析失败（变量名可能变化）。");
+      }
+      resolve(true);
+    };
+    script.onerror = () => {
+      setFundSearchNet(false, "基金检索脚本加载失败（网络策略/接口波动）。");
+      resolve(false);
+    };
+    document.body.appendChild(script);
+  });
+}
+
+function buildFundMaps(){
+  const arr = window.r; // 常见变量
+  if(!arr || !Array.isArray(arr)) throw new Error("fundcode_search_not_found");
+  fundNameMap = new Map();
+  fundCodeMap = new Map();
+  for(const row of arr){
+    const code = row[0];
+    const name = row[2];
+    if(code && name){
+      fundNameMap.set(name, code);
+      fundCodeMap.set(code, name);
+    }
+  }
+}
+function findFundCodeByName(query){
+  if(!fundNameMap) return null;
+  for(const [name, code] of fundNameMap.entries()){
+    if(name.includes(query)) return { code, name };
+  }
+  return null;
+}
+
+/* -------------------- 基金估值 JSONP -------------------- */
+function jsonpFundgz(code){
+  return new Promise((resolve, reject)=>{
+    const cbName = "jsonpgz";
+    const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+
+    const prev = window[cbName];
+    const timer = setTimeout(()=>{
+      cleanup();
+      reject(new Error("timeout"));
+    }, 9000);
+
+    function cleanup(){
+      clearTimeout(timer);
+      try{ script.remove(); }catch{}
+      window[cbName] = prev;
+    }
+
+    window[cbName] = (data)=>{
+      cleanup();
+      resolve(data);
+    };
+
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = ()=>{
+      cleanup();
+      reject(new Error("load_error"));
+    };
+    document.body.appendChild(script);
+  });
+}
+
+/* -------------------- 右侧：计算汇总（✅账户资产、当日总收益） -------------------- */
+function computeFundMetrics(list){
+  let accountAsset = 0; // Σ(amount + holdProfit)
+  let todayTotalProfit = 0; // Σ(todayProfit)
+  let todaySumForHeader = 0; // 同 todayTotalProfit，用于“今日合计”
+
+  const enriched = list.map(f=>{
+    const d = fundCache.get(f.code);
+    const gszzl = d ? Number(d.gszzl) : NaN;
+
+    const amount = Number(f.amount);
+    const holdProfit = Number(f.holdProfit);
+
+    const todayProfit = (isFinite(amount) && isFinite(gszzl)) ? amount * gszzl / 100 : NaN;
+
+    if(isFinite(amount)) accountAsset += amount;
+    if(isFinite(holdProfit)) accountAsset += holdProfit;
+
+    if(isFinite(todayProfit)){
+      todayTotalProfit += todayProfit;
+      todaySumForHeader += todayProfit;
+    }
+
+    return {
+      ...f,
+      __name: f.name || d?.name || fundCodeMap?.get(f.code) || "（未知基金）",
+      __gztime: d?.gztime || "—",
+      __gszzl: gszzl,
+      __todayProfit: todayProfit,
+    };
+  });
+
+  return { enriched, accountAsset, todayTotalProfit, todaySumForHeader };
+}
+
+/* -------------------- 右侧：渲染基金 + ✅排序 + ✅三列一行 + ✅确认提示 -------------------- */
+function renderFunds(){
+  const list = loadFunds();
+  const sortMode = loadSort();
+  $("#fundSort").value = sortMode;
+
+  const { enriched, accountAsset, todayTotalProfit, todaySumForHeader } = computeFundMetrics(list);
+
+  // ✅顶部汇总
+  $("#accountAsset").textContent = fmtMoney(accountAsset);
+  $("#todayTotalProfit").innerHTML = `<span class="${clsBy(todayTotalProfit)}">${fmtMoney(todayTotalProfit)}</span>`;
+  $("#fundTodaySum").innerHTML = `<span class="${clsBy(todaySumForHeader)}">${fmtMoney(todaySumForHeader)}</span>`;
+
+  // ✅排序（默认：保持录入顺序；否则按降序）
+  let sorted = enriched.slice();
+  if(sortMode === "profit"){
+    sorted.sort((a,b)=>{
+      const av = isFinite(a.__todayProfit) ? a.__todayProfit : -Infinity;
+      const bv = isFinite(b.__todayProfit) ? b.__todayProfit : -Infinity;
+      return bv - av;
+    });
+  }else if(sortMode === "rate"){
+    sorted.sort((a,b)=>{
+      const av = isFinite(a.__gszzl) ? a.__gszzl : -Infinity;
+      const bv = isFinite(b.__gszzl) ? b.__gszzl : -Infinity;
+      return bv - av;
+    });
+  }
+
+  const el = $("#fundList");
+  el.innerHTML = "";
+
+  sorted.forEach((f)=>{
+    const gszzl = f.__gszzl;
+    const cls = clsBy(gszzl);
+
+    const amount = Number(f.amount);
+    const holdProfit = Number(f.holdProfit);
+    const todayProfit = f.__todayProfit;
+
+    const d = fundCache.get(f.code);
+
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="top">
+        <div>
+          <div class="name">${f.__name}</div>
+          <div class="code">${f.code}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="tag">${f.__gztime}</span>
+          <span class="chg ${cls}">${isFinite(gszzl)?fmtPct(gszzl):"—"}</span>
+        </div>
+      </div>
+
+      <div class="meta">
+        估算净值：<span class="${cls}">${d?.gsz ?? "—"}</span>
+        &nbsp;|&nbsp; 单位净值：${d?.dwjz ?? "—"}（${d?.jzrq ?? "—"}）
+      </div>
+
+      <!-- ✅三者一行：持有金额 / 持有收益 / 当日收益 + 操作 -->
+      <div class="fund-row">
+        <div class="fund-cell">
+          <div class="t">持有金额（元）</div>
+          <input data-amt="${f.code}" value="${isFinite(amount)?amount:""}" placeholder="例如 50000">
+        </div>
+
+        <div class="fund-cell">
+          <div class="t">持有收益（元）</div>
+          <input data-hp="${f.code}" value="${isFinite(holdProfit)?holdProfit:""}" placeholder="例如 3200">
+        </div>
+
+        <div>
+          <div class="fund-profit">
+            <span>当日收益</span>
+            <span class="money ${clsBy(todayProfit)}">${isFinite(todayProfit)?fmtMoney(todayProfit):"—"}</span>
+          </div>
+          <div class="small" style="margin-top:6px;">
+            计算：持有金额 × 当日估值涨跌(gszzl)
+          </div>
+        </div>
+
+        <div class="fund-actions">
+          <button class="secondary" data-confirm="${f.code}">确认</button>
+          <button class="secondary" data-fdel="${f.code}">删除</button>
+        </div>
+      </div>
+    `;
+
+    el.appendChild(div);
+  });
+
+  // ✅确认：保存输入 + Toast
+  el.querySelectorAll("button[data-confirm]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const code = btn.getAttribute("data-confirm");
+      const amtInp = el.querySelector(`input[data-amt="${code}"]`);
+      const hpInp  = el.querySelector(`input[data-hp="${code}"]`);
+
+      const amount = Number(amtInp?.value);
+      const holdProfit = Number(hpInp?.value);
+
+      const list = loadFunds();
+      const t = list.find(x => x.code === code);
+      if(t){
+        t.amount = isFinite(amount) ? amount : "";
+        t.holdProfit = isFinite(holdProfit) ? holdProfit : "";
+        saveFunds(list);
+        showToast("数据已修改");
+        renderFunds(); // 立刻刷新汇总/排序/当日收益
+      }
+    });
+  });
+
+  // ✅删除
+  el.querySelectorAll("button[data-fdel]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const code = btn.getAttribute("data-fdel");
+      const next = loadFunds().filter(x => x.code !== code);
+      saveFunds(next);
+      fundCache.delete(code);
+      renderFunds();
+    });
+  });
+}
+
+// ✅排序选择：实时刷新
+$("#fundSort").addEventListener("change", ()=>{
+  saveSort($("#fundSort").value);
+  renderFunds();
+});
+
+/* -------------------- 基金刷新 -------------------- */
+async function refreshFunds(){
+  const list = loadFunds();
+  if(list.length === 0){
+    setFundNet(true, "暂无基金，自行添加即可。");
+    renderFunds();
+    return;
+  }
+
+  setStatus("状态：基金估值刷新中…");
+  let anyOk = false;
+
+  for(const f of list){
+    try{
+      const d = await jsonpFundgz(f.code);
+      fundCache.set(f.code, d);
+      if(!f.name && d?.name) f.name = d.name;
+      anyOk = true;
+    }catch(e){
+      console.warn("fundgz error", f.code, e);
+    }
+  }
+
+  saveFunds(list);
+  renderFunds();
+
+  if(anyOk){
+    setFundNet(true, "基金估值接口可用。");
+    setStatus("状态：刷新完成（" + nowStr() + "）");
+  }else{
+    setFundNet(false, "基金估值接口不可用：可能网络策略/接口延迟/限流。");
+    setStatus("状态：基金刷新失败（见右侧诊断）");
+  }
+}
+
+/* -------------------- 添加基金：名称/代码识别 -------------------- */
+$("#fundAdd").addEventListener("click", async ()=>{
+  const q = $("#fundQuery").value.trim();
+  if(!q) return;
+
+  await loadFundCodeSearch();
+
+  let code = null, name = null;
+
+  const digits = q.replace(/\D/g,"");
+  if(digits.length >= 5){
+    code = digits.padStart(6, "0");
+    name = fundCodeMap?.get(code) || null;
+  }else{
+    const found = findFundCodeByName(q);
+    if(found){ code = found.code; name = found.name; }
+  }
+
+  if(!code){
+    alert("未识别到基金代码。请输入 6 位基金代码，或更精确的基金名称。");
+    return;
+  }
+
+  const list = loadFunds();
+  if(list.some(x => x.code === code)){
+    $("#fundQuery").value = "";
+    return;
+  }
+
+  list.unshift({ code, name, amount:"", holdProfit:"" });
+  saveFunds(list);
+  $("#fundQuery").value = "";
+
+  await refreshFunds();
+});
+$("#fundQuery").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter") $("#fundAdd").click();
+});
+$("#fundRefresh").addEventListener("click", refreshFunds);
+
+let fundIntervalId = null;
+function applyFundInterval(){
+  if(fundIntervalId) clearInterval(fundIntervalId);
+  const sec = Number($("#fundInterval").value);
+  if(sec > 0) fundIntervalId = setInterval(refreshFunds, sec*1000);
+}
+$("#fundInterval").addEventListener("change", applyFundInterval);
+
+/* -------------------- 初始化 -------------------- */
+initChart();
+renderIndices();
+
+// 默认选第一个指数
+const first = loadIndices()[0];
+selectedIndex = first;
+renderIndices();
+
+(async ()=>{
+  $("#fundSort").value = loadSort();
+  await refreshIndices();
+  if(selectedIndex) await selectIndex(selectedIndex);
+
+  await loadFundCodeSearch(); // 预热基金名称检索
+  applyFundInterval();
+  renderFunds();
+  await refreshFunds();
+})();
+
+// 指数定时刷新 + 同步更新中间KPI
+setInterval(()=>{
+  refreshIndices().then(()=> updateCenterKPI());
+}, 15000);
+
+/* -------------------- 指数：中间KPI与图表联动 -------------------- */
+function updateCenterKPI(){
+  if(!selectedIndex) return;
+  const q = idxCache.get(selectedIndex.secid);
+  const last = q ? normalizePrice(q.f43) : NaN;
+  const pct  = q ? normalizePct(q.f169) : NaN;
+  const chg  = q ? normalizePrice(q.f170) : NaN;
+  const flow = q ? normalizeFlow(q.f62) : NaN;
+
+  $("#selectedTitle").textContent = selectedIndex.name + " · " + selectedIndex.secid;
+  $("#kpiPrice").textContent = isFinite(last) ? last.toFixed(2) : "—";
+  $("#kpiChg").innerHTML = `涨跌：<span class="${clsBy(pct)}">${isFinite(pct)?fmtPct(pct):"—"}</span> · 涨跌额：<span class="${clsBy(chg)}">${isFinite(chg)?((chg>0?"+":"")+chg.toFixed(2)):"—"}</span>`;
+  $("#kpiFlow").innerHTML = isFinite(flow) ? `<span class="${clsBy(flow)}">${fmtMoney(flow)}</span>` : "—";
+}
+</script>
+</body>
+</html>
